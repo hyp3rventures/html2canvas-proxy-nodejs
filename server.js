@@ -27,49 +27,29 @@ module.exports = function() {
 
   app.use(cors());
   app.get("/", validUrl, function(req, res, next) {
-    let retryCount = 0;
-    let success = false;
-
     if (typeof req.query.callback === "string") {
-      do {
-        console.log("Try count ", retryCount);
-        queue(function() {
-          request({ url: req.query.url, encoding: "binary" }, function(
-            error,
-            response,
-            body
-          ) {
-            if (error) {
-              retryCount += 1;
-            } else {
-              success = true;
-
-              res.jsonp({
-                content: new Buffer(body, "binary").toString("base64"),
-                type: response.headers["content-type"]
-              });
-            }
-          });
-        }, 2);
-      } while (retryCount < MAX_RETRIES && !success);
-
-      // When retry count has been completed and we don't have success fallback to 500
-      if (!success) {
-        console.log("Image error, falling back to default.");
-
-        request({ url: defaultImageUrl, encoding: "binary" }, function(
-          error,
-          response,
-          body
-        ) {
-          res.jsonp({
-            content: new Buffer(body, "binary").toString("base64"),
-            type: response.headers["content-type"]
-          });
+      request({ url: req.query.url, encoding: "binary" }, function(
+        error,
+        response,
+        body
+      ) {
+        if (error) {
+          return next(error);
+        }
+        res.jsonp({
+          content: new Buffer(body, "binary").toString("base64"),
+          type: response.headers["content-type"]
         });
-      }
+      });
     } else {
-      req.pipe(request(req.query.url).on("error", next)).pipe(res);
+      req.pipe(
+        request
+          .get(req.query.url)
+          .on("response", response => response.pipe(res))
+          .on("error", error =>
+            req.pipe(request.get(defaultImageUrl)).pipe(res)
+          )
+      );
     }
   });
 
