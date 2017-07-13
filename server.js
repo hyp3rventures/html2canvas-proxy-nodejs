@@ -7,7 +7,9 @@ const queue = require("async/queue");
 
 module.exports = function() {
   const app = express.Router();
-  const MAX_RETRIES = 5;
+  const MAX_RETRIES = 10;
+  const defaultImageUrl =
+    "https://s3.amazonaws.com/static-hyper-co/core-app/transparent.png";
 
   function validUrl(req, res, next) {
     req.query = req.query || qs.parse(url.parse(req.url).query);
@@ -30,6 +32,7 @@ module.exports = function() {
 
     if (typeof req.query.callback === "string") {
       do {
+        console.log("Try count ", retryCount);
         queue(function() {
           request({ url: req.query.url, encoding: "binary" }, function(
             error,
@@ -51,9 +54,19 @@ module.exports = function() {
       } while (retryCount < MAX_RETRIES && !success);
 
       // When retry count has been completed and we don't have success fallback to 500
-      // TODO: Make the fallback to a default image.
       if (!success) {
-        return next(error);
+        console.log("Image error, falling back to default.");
+
+        request({ url: defaultImageUrl, encoding: "binary" }, function(
+          error,
+          response,
+          body
+        ) {
+          res.jsonp({
+            content: new Buffer(body, "binary").toString("base64"),
+            type: response.headers["content-type"]
+          });
+        });
       }
     } else {
       req.pipe(request(req.query.url).on("error", next)).pipe(res);
