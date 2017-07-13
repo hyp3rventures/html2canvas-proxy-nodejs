@@ -39,7 +39,7 @@ module.exports = function() {
             type: response.headers["content-type"]
           });
         });
-      }, 10);
+      }, 5);
     } else {
       req.pipe(request(req.query.url).on("error", next)).pipe(res);
     }
