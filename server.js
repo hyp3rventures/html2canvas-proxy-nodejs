@@ -3,7 +3,7 @@ const url = require("url");
 const cors = require("cors");
 const qs = require("qs");
 const request = require("request");
-const queue = require("async/queue");
+const retry = require("requestretry");
 
 module.exports = function() {
   const app = express.Router();
@@ -46,9 +46,16 @@ module.exports = function() {
         request
           .get(req.query.url)
           .on("response", response => response.pipe(res))
-          .on("error", error =>
-            req.pipe(request.get(defaultImageUrl)).pipe(res)
-          )
+          .on("error", error => {
+            return req.pipe(
+              retry
+                .get(req.query.url, { retryDelay: 2000, maxAttempts: 1 })
+                .on("response", response => response.pipe(res))
+                .on("error", error =>
+                  req.pipe(request.get(defaultImageUrl)).pipe(res)
+                )
+            );
+          })
       );
     }
   });
